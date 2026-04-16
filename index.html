@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCFHS Nursing Simulator | Nurse Technician | Level 4</title>
+    <style>
+        :root {
+            --primary: #1a2a6c;
+            --secondary: #b21f1f;
+            --accent: #fdbb2d;
+            --bg: #f8f9fa;
+            --text: #333;
+            --success: #28a745;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            color: var(--text);
+        }
+
+        .screen { display: none; padding: 20px; max-width: 900px; margin: auto; }
+        .active { display: block; }
+
+        .welcome-card, .result-card {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-top: 50px;
+        }
+
+        input[type="text"] {
+            padding: 12px;
+            width: 80%;
+            margin: 20px 0;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .exam-header {
+            background: var(--primary);
+            color: white;
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-radius: 0 0 10px 10px;
+        }
+
+        .quiz-card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-top: 20px;
+        }
+
+        .vignette {
+            font-size: 1.15rem;
+            font-weight: 600;
+            line-height: 1.6;
+            margin-bottom: 25px;
+            border-left: 5px solid var(--secondary);
+            padding-left: 15px;
+        }
+
+        .options-grid { display: grid; gap: 12px; }
+
+        .opt {
+            padding: 15px;
+            border: 2px solid #eee;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+            background: #fff;
+            font-weight: 500;
+            text-align: left;
+        }
+
+        .opt:hover { background: #f0f4ff; border-color: var(--primary); }
+        .opt.selected { background: var(--primary); color: white; border-color: var(--primary); }
+
+        #rationale-area {
+            margin-top: 20px;
+            padding: 20px;
+            background: #e7f3ff;
+            border-left: 5px solid var(--primary);
+            border-radius: 8px;
+            display: none;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: 0.3s;
+        }
+
+        .btn-start { background: var(--primary); color: white; }
+        .btn-next { background: var(--success); color: white; }
+        .btn-rationale { background: var(--accent); color: #333; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+
+        .score-circle {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            margin: 20px auto;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="welcome-screen" class="screen active">
+        <div class="welcome-card">
+            <h1>SCFHS NURSING MOCK V3</h1>
+            <p>High-Level Clinical Vignettes | Nurse Technician  (Level 4 Difficulty)</p>
+            <input type="text" id="candidate-name" placeholder="Enter Full Name">
+            <br>
+            <button class="btn btn-start" onclick="startExam()">Start Examination</button>
+        </div>
+    </div>
+
+    <div id="exam-screen" class="screen">
+        <div class="exam-header">
+            <div id="display-name">Candidate</div>
+            <div id="progress-text">Q 1/120</div>
+            <div id="timer-text">00:00</div>
+        </div>
+
+        <div class="quiz-card">
+            <div id="vignette" class="vignette">Loading question...</div>
+            <div id="options" class="options-grid"></div>
+
+            <div id="rationale-area"></div>
+
+            <div style="margin-top: 30px; display: flex; gap: 10px;">
+                <button class="btn btn-rationale" id="rat-btn" onclick="showRationale()" disabled>Show Rationale</button>
+                <button class="btn btn-next" id="next-btn" onclick="nextQuestion()" disabled>Next Question</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="result-screen" class="screen">
+        <div class="result-card">
+            <h2>Results Summary</h2>
+            <div id="score-display" class="score-circle">0%</div>
+            <p id="feedback-text"></p>
+            <button class="btn btn-start" onclick="location.reload()">Restart</button>
+        </div>
+    </div>
+
+<script>
+    // DATA SOURCE (Replace/Add your 1-120 items here)
+    const rawQuestions = [
+    {
+            id: 1,
+            v: "A 55-year-old male is admitted with an acute exacerbation of COPD. The nurse notes the patient is confused, has a respiratory rate of 10 breaths/min, and is receiving oxygen via nasal cannula at 6L/min. What is the priority nursing action?",
+            a: "Increase the oxygen flow to 10L/min to treat the confusion.",
+            b: "Lower the oxygen flow rate and prepare for arterial blood gas (ABG) analysis.",
+            c: "Place the patient in a supine position to rest.",
+            d: "Administer a sedative to reduce the patient's agitation.",
+            k: "B",
+            str: "STR: Increase the oxygen (A) because the patient is confused and needs more air.",
+            scfhs: "SCFHS: (B) 'Safe Action'. In COPD, a high FiO2 can abolish the 'hypoxic drive,' leading to carbon dioxide narcosis and respiratory depression. The nurse must lower the O2 and assess for respiratory acidosis (B)."
+        },
+        {
+            id: 2,
+            v: "A patient with Type 1 Diabetes is found unresponsive, diaphoretic, and tachycardic. The nurse suspects hypoglycemia but cannot obtain a finger-stick glucose reading. What is the immediate priority?",
+            a: "Wait for the laboratory to perform a venous draw.",
+            b: "Administer 50% Dextrose (D50) IV push or Glucagon IM.",
+            c: "Administer 10 units of regular insulin.",
+            d: "Attempt to give the patient orange juice with sugar by mouth.",
+            k: "B",
+            str: "STR: Give orange juice (D) as it is the most natural way to raise sugar.",
+            scfhs: "SCFHS: (B) 'Safe Action'. For an unresponsive patient (B), giving anything by mouth (D) is an aspiration risk. If hypoglycemia is suspected and the patient is unconscious, emergency glucose/glucagon is the priority."
+        },
+        {
+            id: 3,
+            v: "A nurse is caring for a patient 4 hours after a 'Thyroidectomy.' The patient reports tingling in the fingers and around the mouth. What is the nurse’s priority assessment?",
+            a: "Check for bleeding at the back of the neck.",
+            b: "Assess for Trousseau’s and Chvostek’s signs.",
+            c: "Check the patient's temperature for thyroid storm.",
+            d: "Encourage the patient to cough and deep breathe.",
+            k: "B",
+            str: "STR: Check for bleeding (A) as the neck is a very vascular area.",
+            scfhs: "SCFHS: (B) 'Assessment'. Tingling (paresthesia) (B) is an early sign of hypocalcemia, which occurs if the parathyroid glands are accidentally damaged or removed during surgery. This can lead to tetany and laryngospasm."
+        },
+        {
+            id: 4,
+            v: "Which ECG finding is most characteristic of 'Hyperkalemia' in a patient with Chronic Kidney Disease (CKD)?",
+            a: "Presence of a U-wave.",
+            b: "Tall, peaked T-waves.",
+            c: "ST-segment depression.",
+            d: "Shortened PR interval.",
+            k: "B",
+            str: "STR: Presence of a U-wave (A) because it shows the heart is overcharged with potassium.",
+            scfhs: "SCFHS: (B) 'Assessment'. Tall, peaked T-waves (B) are the hallmark of hyperkalemia. As levels rise, the QRS widens and can lead to ventricular fibrillation. U-waves (A) are typical of *hypo*kalemia."
+        },
+        {
+            id: 5,
+            v: "A patient with a deep vein thrombosis (DVT) is receiving a continuous Heparin infusion. The nurse notes the patient’s Activated Partial Thromboplastin Time (aPTT) is 120 seconds (Control: 30 seconds). What is the priority action?",
+            a: "Continue the infusion as this is a therapeutic level.",
+            b: "Stop the infusion and prepare Protamine Sulfate.",
+            c: "Increase the infusion rate to reach 150 seconds.",
+            d: "Administer Vitamin K as an antidote.",
+            k: "B",
+            str: "STR: Administer Vitamin K (D) to help the blood clot again.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Therapeutic aPTT is generally 1.5 to 2.5 times the control (45-75s). A level of 120s (B) indicates a high risk for spontaneous bleeding. Protamine Sulfate is the antidote for Heparin; Vitamin K (D) is for Warfarin."
+        },
+        {
+            id: 6,
+            v: "A patient is admitted with 'Right-Sided Heart Failure.' Which clinical manifestation should the nurse expect to find?",
+            a: "Pulmonary edema and crackles.",
+            b: "Jugular Venous Distension (JVD) and peripheral edema.",
+            c: "Dyspnea and orthopnea.",
+            d: "Dry, hacking cough.",
+            k: "B",
+            str: "STR: Pulmonary edema (A) because the heart cannot pump blood to the body.",
+            scfhs: "SCFHS: (B) 'Assessment'. Right-sided failure causes systemic congestion (B), leading to JVD, hepatomegaly, and edema. Pulmonary symptoms (A, C, D) are characteristic of Left-sided heart failure."
+        },
+        {
+            id: 7,
+            v: "What is the priority nursing intervention for a patient during an active 'Tonic-Clonic Seizure'?",
+            a: "Insert a padded tongue blade into the mouth to prevent tongue-biting.",
+            b: "Turn the patient to the side and protect the head from injury.",
+            c: "Restrain the patient's limbs to prevent fractures.",
+            d: "Administer oral suctioning immediately while the patient is convulsing.",
+            k: "B",
+            str: "STR: Insert a padded tongue blade (A) so the patient doesn't swallow their tongue.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Safety (B) is the priority. Never insert anything into the mouth (A) or restrain the patient (C). Lateral positioning prevents aspiration of secretions."
+        },
+        {
+            id: 8,
+            v: "A patient has a chest tube connected to a water-seal drainage system. The nurse observes 'gentle bubbling' in the suction control chamber. What does this indicate?",
+            a: "There is an air leak in the system.",
+            b: "The system is functioning correctly.",
+            c: "The chest tube is occluded.",
+            d: "The patient has developed a tension pneumothorax.",
+            k: "B",
+            str: "STR: There is an air leak (A) because air should not be bubbling in the water.",
+            scfhs: "SCFHS: (B) 'Assessment'. Gentle bubbling in the *suction control* chamber (B) is normal. Continuous bubbling in the *water-seal* chamber (A) would indicate an air leak."
+        },
+        {
+            id: 9,
+            v: "Which clinical finding is most indicative of 'Early' Hypovolemic Shock?",
+            a: "Hypotension and bradycardia.",
+            b: "Tachycardia and narrowed pulse pressure.",
+            c: "Lethargy and cold, clammy skin.",
+            d: "Decreased urine output (<5 mL/hr).",
+            k: "B",
+            str: "STR: Hypotension (A) as the blood volume is low.",
+            scfhs: "SCFHS: (B) 'Assessment'. In the compensatory (early) stage of shock, tachycardia (B) occurs as the body tries to maintain cardiac output. Hypotension (A) is a late sign when compensation fails."
+        },
+        {
+            id: 10,
+            v: "A patient is prescribed 'Alendronate' for Osteoporosis. Which administration instruction is vital to prevent esophageal erosion?",
+            a: "Take the medication with milk at bedtime.",
+            b: "Take the medication with a full glass of water and remain upright for 30 minutes.",
+            c: "Crush the tablet and mix it with applesauce.",
+            d: "Take the medication immediately after a large meal.",
+            k: "B",
+            str: "STR: Take with milk (A) to coat the stomach.",
+            scfhs: "SCFHS: (B) 'Health Education'. Bisphosphonates like Alendronate (B) can cause severe esophagitis. Taking it with water on an empty stomach and staying upright prevents reflux into the esophagus."
+        },
+        {
+            id: 11,
+            v: "A nurse is caring for a patient with 'Addison’s Disease.' Which electrolyte imbalance is expected during an Addisonian Crisis?",
+            a: "Hypernatremia and Hypokalemia.",
+            b: "Hyponatremia and Hyperkalemia.",
+            c: "Hypercalcemia and Hypophosphatemia.",
+            d: "Hypomagnesemia and Hypernatremia.",
+            k: "B",
+            str: "STR: Hypernatremia (A) as the body keeps salt to maintain blood pressure.",
+            scfhs: "SCFHS: (B) 'Assessment'. Addison’s is a deficiency of adrenal hormones. Lack of aldosterone leads to salt wasting (Hyponatremia) and potassium retention (Hyperkalemia) (B)."
+        },
+        {
+            id: 12,
+            v: "A patient with a history of Cirrhosis presents with hematemesis and signs of shock. What is the most likely cause of the bleeding?",
+            a: "Peptic ulcer disease.",
+            b: "Esophageal varices.",
+            c: "Diverticulitis.",
+            d: "Hiatal hernia.",
+            k: "B",
+            str: "STR: Peptic ulcer (A) because liver patients have high stomach acid.",
+            scfhs: "SCFHS: (B) 'Assessment'. Portal hypertension in cirrhosis leads to esophageal varices (B). Rupture of these vessels causes massive, life-threatening upper GI bleeding."
+        },
+        {
+            id: 13,
+            v: "A nurse is assessing a patient with a 'Cushing’s Triad' associated with increased intracranial pressure (ICP). Which set of vital signs fits this description?",
+            a: "Tachycardia, Hypotension, and Tachypnea.",
+            b: "Bradycardia, Hypertension with widened pulse pressure, and Irregular respirations.",
+            c: "Bradycardia, Hypotension, and Bradypnea.",
+            d: "Tachycardia, Hypertension, and Kussmaul respirations.",
+            k: "B",
+            str: "STR: Tachycardia and Hypotension (A) as the brain is in shock.",
+            scfhs: "SCFHS: (B) 'Assessment'. Cushing’s Triad (B) is a late sign of increased ICP and impending herniation. It is the opposite of the vital signs seen in shock."
+        },
+        {
+            id: 14,
+            v: "A patient is diagnosed with 'Pernicious Anemia.' The nurse understands that this condition is caused by a deficiency of which substance?",
+            a: "Iron.",
+            b: "Intrinsic Factor.",
+            c: "Folic Acid.",
+            d: "Erythropoietin.",
+            k: "B",
+            str: "STR: Iron (A) because all anemia is caused by low iron.",
+            scfhs: "SCFHS: (B) 'Pathophysiology'. Pernicious anemia (B) is an autoimmune condition where the lack of Intrinsic Factor prevents Vitamin B12 absorption in the ileum."
+        },
+        {
+            id: 15,
+            v: "What is the primary goal of the 'Water Seal' in a chest drainage system?",
+            a: "To provide a way to measure the volume of drainage.",
+            b: "To prevent air from re-entering the pleural space during inspiration.",
+            c: "To apply negative pressure to the lungs.",
+            d: "To filter bacteria from the pleural fluid.",
+            k: "B",
+            str: "STR: To apply negative pressure (C) so the lung can expand.",
+            scfhs: (B) "SCFHS: 'Maternity/Medical'. The water seal (B) acts as a one-way valve. It allows air to exit the pleural space but prevents outside air from being sucked back into the chest."
+        },
+        {
+            id: 16,
+            v: "A patient with 'Acute Pancreatitis' is NPO. What is the primary rationale for this intervention?",
+            a: "To prevent the patient from vomiting.",
+            b: "To reduce the secretion of pancreatic enzymes and rest the organ.",
+            c: "To prepare the patient for immediate surgery.",
+            d: "To control the patient's blood glucose levels.",
+            k: "B",
+            str: "STR: To prevent vomiting (A) because pancreatitis causes severe nausea.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Food in the duodenum stimulates the release of secretin, which triggers the pancreas to release enzymes. In pancreatitis, these enzymes cause self-digestion; resting the gut (B) is key."
+        },
+        {
+            id: 17,
+            v: "Which assessment finding is most associated with 'Left-Sided' Hemiplegia following a Stroke?",
+            a: "Aphasia and cautious behavior.",
+            b: "Impulsivity and impaired judgment.",
+            c: "Right-sided visual field deficits.",
+            d: "Right-sided facial droop.",
+            k: "B",
+            str: "STR: Aphasia (A) because the patient cannot speak properly.",
+            scfhs: "SCFHS: (B) 'Assessment'. A stroke on the Right side of the brain causes Left-sided hemiplegia. Right-brain damage (B) is associated with impulsivity and lack of awareness of deficits. Aphasia (A) is linked to Left-brain damage."
+        },
+        {
+            id: 18,
+            v: "A patient is prescribed 'Spironolactone' for heart failure. Which dietary instruction is most important?",
+            a: "Increase intake of bananas and spinach.",
+            b: "Avoid salt substitutes containing potassium.",
+            c: "Drink at least 3 liters of water a day.",
+            d: "Limit intake of dairy products.",
+            k: "B",
+            str: "STR: Increase intake of bananas (A) to replace the potassium lost by the diuretic.",
+            scfhs: "SCFHS: (B) 'Health Education'. Spironolactone (B) is a potassium-sparing diuretic. Patients must avoid extra potassium (bananas, salt substitutes) to prevent life-threatening hyperkalemia."
+        },
+        {
+            id: 19,
+            v: "A patient presents to the ER with 'Crushing Substernal Chest Pain' that radiates to the left jaw. The ECG shows ST-segment elevation. What is the nurse's first medication priority?",
+            a: "Administer Morphine IV.",
+            b: "Administer Aspirin (chewable).",
+            c: "Give a dose of Atorvastatin.",
+            d: "Start an Heparin drip.",
+            k: "B",
+            str: "STR: Administer Morphine (A) to stop the pain and reduce heart stress.",
+            scfhs: "SCFHS: (B) 'Safe Action'. While MONA (Morphine, Oxygen, Nitroglycerin, Aspirin) is the mnemonic, Aspirin (B) is the highest priority as it prevents further platelet aggregation and clot growth."
+        },
+        {
+            id: 20,
+            v: "A nurse is caring for a patient with 'Multiple Sclerosis' (MS). Which teaching is most effective for preventing exacerbations?",
+            a: "Exercise vigorously in the afternoon sun.",
+            b: "Avoid excessive heat and hot baths.",
+            c: "Limit fluid intake to 1 liter per day.",
+            d: "Eat a low-protein, high-fat diet.",
+            k: "B",
+            str: "STR: Exercise in the sun (A) to get Vitamin D for the nerves.",
+            scfhs: "SCFHS: (B) 'Health Education'. Heat (B) (Uhthoff's phenomenon) is a major trigger for MS symptom exacerbation. Patients should stay cool and pace their activities."
+        },
+        {
+            id: 21,
+            v: "A patient with 'Diabetes Insipidus' is passing large amounts of dilute urine. Which lab finding confirms this diagnosis?",
+            a: "Urine Specific Gravity of 1.030.",
+            b: "Urine Specific Gravity of 1.002.",
+            c: "Serum Sodium of 130 mEq/L.",
+            d: "Blood Glucose of 300 mg/dL.",
+            k: "B",
+            str: "STR: Urine Specific Gravity of 1.030 (A) because the urine is very heavy with waste.",
+            scfhs: "SCFHS: (B) 'Assessment'. DI is a lack of ADH. The kidneys cannot concentrate urine, leading to very low specific gravity (B) (<1.005) and high serum sodium due to dehydration."
+        },
+        {
+            id: 22,
+            v: "What is the hallmark clinical sign of 'Systemic Lupus Erythematosus' (SLE)?",
+            a: "A 'Butterfly' rash across the bridge of the nose and cheeks.",
+            b: "Heberden's nodes on the fingers.",
+            c: "Progressive muscle weakness in the lower limbs.",
+            d: "Yellowing of the sclera.",
+            k: "A",
+            str: "STR: Heberden's nodes (B) as lupus affects the joints mostly.",
+            scfhs: "SCFHS: (A) 'Assessment'. The malar (butterfly) rash (A) is the classic cutaneous sign of SLE. Heberden's nodes (B) are seen in Osteoarthritis."
+        },
+        {
+            id: 23,
+            v: "A patient is scheduled for an 'IV Pyelogram' (IVP). Which question is the most important to ask during the pre-procedure assessment?",
+            a: "Are you afraid of needles?",
+            b: "Are you allergic to shellfish or iodine?",
+            c: "When was your last bowel movement?",
+            d: "Do you have any metal implants?",
+            k: "B",
+            str: "STR: Do you have metal implants (D) because the machine is a large magnet.",
+            scfhs: "SCFHS: (B) 'Safe Action'. IVP uses radiopaque contrast dye. Allergy to iodine or shellfish (B) increases the risk of anaphylaxis. Metal implants (D) are a concern for MRI, not IVP."
+        },
+        {
+            id: 24,
+            v: "Which assessment is a priority for a patient receiving 'Peritoneal Dialysis' whose outflow is cloudy?",
+            a: "Check the patient's blood pressure.",
+            b: "Notify the physician and assess for peritonitis.",
+            c: "Warm the next bag of dialysate.",
+            d: "Reposition the patient to improve drainage.",
+            k: "B",
+            str: "STR: Reposition the patient (D) to help the fluid flow better.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Cloudy outflow (B) is the earliest sign of peritonitis, a serious complication of PD. It should be clear or straw-colored. Immediate culture and antibiotics are needed."
+        },
+        {
+            id: 25,
+            v: "A patient with 'Myasthenia Gravis' is having difficulty swallowing and breathing. Which medication is used for the 'Tensilon Test' to diagnose a myasthenic crisis?",
+            a: "Atropine Sulfate.",
+            b: "Edrophonium Chloride.",
+            c: "Pyridostigmine.",
+            d: "Neostigmine.",
+            k: "B",
+            str: "STR: Atropine (A) to speed up the muscles for breathing.",
+            scfhs: "SCFHS: (B) 'Assessment'. Edrophonium (B) is a short-acting acetylcholinesterase inhibitor. If the patient's strength improves after injection, it confirms a myasthenic crisis. Atropine (A) is the antidote for the test's side effects."
+        },
+        {
+            id: 26,
+            v: "A nurse is caring for a patient with 'Chronic Obstructive Pulmonary Disease' (COPD). Which breathing technique should the nurse teach to promote CO2 elimination?",
+            a: "Chest breathing.",
+            b: "Pursed-lip breathing.",
+            c: "Rapid, shallow breathing.",
+            d: "Holding the breath for 5 seconds at the end of inspiration.",
+            k: "B",
+            str: "STR: Holding the breath (D) to allow more oxygen into the lungs.",
+            scfhs: "SCFHS: (B) 'Health Education'. Pursed-lip breathing (B) creates backpressure in the airways, keeping the alveoli open longer and allowing more CO2 to be exhaled."
+        },
+        {
+            id: 27,
+            v: "A patient is admitted with 'Guillain-Barré Syndrome.' What is the nurse's priority assessment?",
+            a: "Daily weight.",
+            b: "Respiratory rate and vital capacity.",
+            c: "Gastrointestinal motility.",
+            d: "Skin integrity of the lower limbs.",
+            k: "B",
+            str: "STR: Skin integrity (D) because the patient cannot feel their legs.",
+            scfhs: "SCFHS: (B) 'Safe Action'. GBS involves ascending paralysis. The most life-threatening complication is when the paralysis reaches the diaphragm, leading to respiratory failure (B)."
+        },
+        {
+            id: 28,
+            v: "A patient with 'Ulcerative Colitis' is scheduled for an Ileostomy. Which description of the stool should the nurse provide to the patient?",
+            a: "Formed and brown.",
+            b: "Liquid and continuous.",
+            c: "Semi-formed and greenish.",
+            d: "Occasional and solid.",
+            k: "B",
+            str: "STR: Formed and brown (A) once the surgery heals.",
+            scfhs: "SCFHS: (B) 'Health Education'. Since an ileostomy (B) bypasses the entire colon (where water is absorbed), the output is always liquid and contains high amounts of electrolytes."
+        },
+        {
+            id: 29,
+            v: "What is the first sign of 'Oxygen Toxicity' in a patient receiving high concentrations of oxygen?",
+            a: "Substernal chest pain and nasal stuffiness.",
+            b: "Bradycardia and hypotension.",
+            c: "Increased energy and euphoria.",
+            d: "Cyanosis of the lips.",
+            k: "A",
+            str: "STR: Cyanosis (D) because the lungs are damaged and cannot take in oxygen.",
+            scfhs: "SCFHS: (A) 'Assessment'. Early signs of O2 toxicity (A) include non-productive cough, substernal chest pain, and GI upset. Long-term use can lead to lung fibrosis."
+        },
+        {
+            id: 30,
+            v: "A patient is diagnosed with 'Angina Pectoris.' Which instruction should the nurse give for the use of sublingual Nitroglycerin?",
+            a: "Take one tablet every 15 minutes for up to 3 doses.",
+            b: "Take one tablet every 5 minutes for up to 3 doses; call EMS if pain persists.",
+            c: "Chew the tablet for faster absorption.",
+            d: "Stop taking the medication if you feel a headache.",
+            k: "B",
+            str: "STR: Take every 15 minutes (A) so the blood pressure doesn't drop too fast.",
+            scfhs: "SCFHS: (B) 'Health Education'. Standard protocol (B) is 1 tablet every 5 mins x3. Headaches (D) are a common, expected side effect due to vasodilation."
+        },
+      {
+            id: 31,
+            v: "A patient with 'Chronic Kidney Disease' (CKD) is receiving Epoetin Alfa. Which assessment finding indicates the medication is effective?",
+            a: "Increased serum potassium levels.",
+            b: "Increased hemoglobin and hematocrit levels.",
+            c: "Decreased blood pressure.",
+            d: "Increased urine output.",
+            k: "B",
+            str: "STR: Increased urine output (D) as the drug helps the kidneys work better.",
+            scfhs: "SCFHS: (B) 'Pharmacology'. Epoetin Alfa (B) stimulates the bone marrow to produce red blood cells. It is used in CKD because the kidneys no longer produce enough natural erythropoietin.",
+        },
+        {
+            id: 32,
+            v: "What is the priority nursing action for a patient who has just returned from a 'Bronchoscopy'?",
+            a: "Encourage the patient to drink plenty of fluids immediately.",
+            b: "Maintain NPO status until the gag reflex returns.",
+            c: "Place the patient in a prone position.",
+            d: "Administer a cough suppressant.",
+            k: "B",
+            str: "STR: Encourage fluids (A) to flush out the sedative used during the procedure.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Local anesthesia used during bronchoscopy (B) numbs the throat. Giving fluids or food before the gag reflex returns (B) puts the patient at high risk for aspiration pneumonia.",
+        },
+        {
+            id: 33,
+            v: "A nurse is assessing a patient with 'Aortic Stenosis.' Which classic triad of symptoms should the nurse expect?",
+            a: "Hypertension, Bradycardia, and Irregular respirations.",
+            b: "Dyspnea, Angina, and Syncope.",
+            c: "Fever, Chills, and Joint pain.",
+            d: "Polyuria, Polydipsia, and Polyphagia.",
+            k: "B",
+            str: "STR: Hypertension (A) because the heart has to pump harder through the narrow valve.",
+            scfhs: "SCFHS: (B) 'Assessment'. Aortic stenosis (B) reduces cardiac output. Dyspnea, chest pain (angina), and fainting (syncope) occur because the heart and brain are not receiving enough oxygenated blood.",
+        },
+        {
+            id: 34,
+            v: "A patient is admitted with 'Autonomic Dysreflexia' following a spinal cord injury at T6. What is the nurse's first action?",
+            a: "Administer an anti-anxiety medication.",
+            b: "Sit the patient upright and check for bladder distension or fecal impaction.",
+            c: "Perform a lumbar puncture.",
+            d: "Place the patient in the Trendelenburg position.",
+            k: "B",
+            str: "STR: Place in Trendelenburg (D) to help blood flow to the brain.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Autonomic Dysreflexia is a medical emergency characterized by extreme hypertension. Sitting the patient up (B) uses gravity to lower BP, and removing the stimulus (B) (usually a full bladder) is the primary treatment.",
+        },
+        {
+            id: 35,
+            v: "Which instruction should the nurse give to a patient starting 'Warfarin' therapy?",
+            a: "Increase intake of green leafy vegetables to improve clotting.",
+            b: "Maintain a consistent intake of Vitamin K-rich foods.",
+            c: "Take Aspirin for minor headaches.",
+            d: "Use a hard-bristled toothbrush to clean teeth properly.",
+            k: "B",
+            str: "STR: Increase green leafy vegetables (A) to help the medication work.",
+            scfhs: "SCFHS: (B) 'Health Education'. Large fluctuations in Vitamin K (found in greens) (B) will interfere with Warfarin's effectiveness. Consistency is key. Aspirin (C) increases bleeding risk and should be avoided.",
+        },
+        {
+            id: 36,
+            v: "A patient with 'Chest Trauma' has a segment of the chest wall that moves inward during inspiration and outward during expiration. What is this called?",
+            a: "Pneumothorax.",
+            b: "Flail Chest.",
+            c: "Hemothorax.",
+            d: "Cardiac Tamponade.",
+            k: "B",
+            str: "STR: Pneumothorax (A) as the air in the chest causes the ribs to move weirdly.",
+            scfhs: "SCFHS: (B) 'Assessment'. Paradoxical chest movement (B) is the hallmark of Flail Chest, occurring when multiple ribs are fractured in two or more places.",
+        },
+        {
+            id: 37,
+            v: "What is the priority assessment for a patient receiving an IV infusion of 'Magnesium Sulfate' for preeclampsia (or as an electrolyte replacement)?",
+            a: "Blood glucose levels.",
+            b: "Deep tendon reflexes and respiratory rate.",
+            c: "Bowel sounds.",
+            d: "Pupillary response to light.",
+            k: "B",
+            str: "STR: Blood glucose (A) because magnesium affects insulin release.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Magnesium toxicity (B) leads to CNS depression. Loss of deep tendon reflexes (DTRs) and a drop in respiratory rate are the first signs of toxic levels.",
+        },
+        {
+            id: 38,
+            v: "A patient is diagnosed with 'Diabetes Mellitus.' Which lab value is the best indicator of long-term glucose control (over 3 months)?",
+            a: "Fasting blood glucose.",
+            b: "Glycosylated Hemoglobin (HbA1c).",
+            c: "Post-prandial glucose.",
+            d: "Urine ketones.",
+            k: "B",
+            str: "STR: Fasting blood glucose (A) because it shows the sugar level without food.",
+            scfhs: "SCFHS: (B) 'Assessment'. HbA1c (B) measures the amount of glucose attached to hemoglobin over the 120-day lifespan of a red blood cell, making it the gold standard for long-term monitoring.",
+        },
+        {
+            id: 39,
+            v: "A nurse is caring for a patient with a 'Hip Fracture' in Buck's Traction. What is a key nursing responsibility?",
+            a: "Remove the weights once every shift to let the skin rest.",
+            b: "Ensure the weights hang freely and do not touch the floor.",
+            c: "Turn the patient from side to side every 2 hours.",
+            d: "Lift the weights when repositioning the patient in bed.",
+            k: "B",
+            str: "STR: Remove the weights (A) so the patient can move their leg.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Weights in skin traction (B) must never be removed or lifted (A, D) without a doctor's order, as this interrupts the pull needed to align the bone or reduce spasms.",
+        },
+        {
+            id: 40,
+            v: "A patient with 'Ascites' is scheduled for 'Paracentesis.' What should the nurse ask the patient to do immediately before the procedure?",
+            a: "Drink 1 liter of water.",
+            b: "Empty the bladder.",
+            c: "Fast for 12 hours.",
+            d: "Perform deep breathing exercises.",
+            k: "B",
+            str: "STR: Drink water (A) to ensure there is enough fluid to drain.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Emptying the bladder (B) prevents accidental puncture of the bladder by the needle during the procedure.",
+        },
+        {
+            id: 41,
+            v: "What is the primary sign of 'Laryngeal Stridor' following a 'Carotid Endarterectomy' or neck surgery?",
+            a: "A low-pitched snoring sound.",
+            b: "A high-pitched, crowing sound on inspiration.",
+            c: "A productive cough with yellow sputum.",
+            d: "Muffled heart sounds.",
+            k: "B",
+            str: "STR: Low-pitched snoring (A) which means the patient is sleeping deeply.",
+            scfhs: "SCFHS: (B) 'Assessment'. Stridor (B) indicates upper airway obstruction or laryngeal edema and is a surgical emergency requiring immediate notification of the physician.",
+        },
+        {
+            id: 42,
+            v: "A patient with 'Heart Failure' is prescribed 'Digoxin.' Which potassium level would most increase the risk of Digoxin toxicity?",
+            a: "3.2 mEq/L.",
+            b: "4.5 mEq/L.",
+            c: "5.2 mEq/L.",
+            d: "3.8 mEq/L.",
+            k: "A",
+            str: "STR: 5.2 mEq/L (C) because high potassium makes the drug work too hard.",
+            scfhs: "SCFHS: (A) 'Pharmacology'. Hypokalemia (low potassium) (A) sensitizes the myocardium to Digoxin, significantly increasing the risk of toxicity even if the drug level is in the therapeutic range.",
+        },
+        {
+            id: 43,
+            v: "A patient has a 'Gastric Ulcer' and reports sudden, sharp, mid-epigastric pain and a 'board-like' abdomen. What should the nurse suspect?",
+            a: "Normal digestion.",
+            b: "Perforation and Peritonitis.",
+            c: "Gastroesophageal Reflux Disease (GERD).",
+            d: "Constipation.",
+            k: "B",
+            str: "STR: Constipation (D) because the stool is stuck and making the belly hard.",
+            scfhs: "SCFHS: (B) 'Assessment'. A board-like, rigid abdomen (B) following ulcer pain is a classic sign of perforation, leading to the leakage of gastric contents and inflammation of the peritoneum.",
+        },
+        {
+            id: 44,
+            v: "Which position is most appropriate for a patient with 'Increased Intracranial Pressure' (ICP)?",
+            a: "Flat in bed (Supine).",
+            b: "Head of bed elevated 30 to 45 degrees, head in neutral alignment.",
+            c: "High-Fowler's position with the knees flexed.",
+            d: "Left lateral Sims position.",
+            k: "B",
+            str: "STR: Flat in bed (A) to help blood get to the brain more easily.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Elevating the head (B) promotes venous drainage from the brain, which helps lower ICP. Neutral alignment prevents kinking of the jugular veins.",
+        },
+        {
+            id: 45,
+            v: "A patient with 'Rheumatoid Arthritis' is taking 'Methotrexate.' Which lab value must be monitored closely due to potential drug side effects?",
+            a: "Blood glucose.",
+            b: "Complete Blood Count (CBC) and Liver Enzymes.",
+            c: "Serum Calcium.",
+            d: "Thyroid Stimulating Hormone (TSH).",
+            k: "B",
+            str: "STR: Serum Calcium (C) because the drug leaches calcium from the bones.",
+            scfhs: "SCFHS: (B) 'Pharmacology'. Methotrexate (B) can cause bone marrow suppression (leukopenia, anemia) and hepatotoxicity. Periodic CBC and liver function tests (LFTs) are mandatory.",
+        },
+        {
+            id: 46,
+            v: "A nurse is caring for a patient with 'Peripheral Artery Disease' (PAD). Which instruction is correct for improving circulation?",
+            a: "Apply a heating pad to the feet to warm the vessels.",
+            b: "Keep the legs in a slightly dependent position (below the heart).",
+            c: "Cross the legs when sitting to provide support.",
+            d: "Wear tight socks to compress the veins.",
+            k: "B",
+            str: "STR: Apply a heating pad (A) to dilate the arteries with heat.",
+            scfhs: "SCFHS: (B) 'Health Education'. In PAD (B), gravity helps blood flow *to* the extremities. Elevating legs or wearing tight socks (D) would hinder arterial flow. Heating pads (A) are dangerous due to decreased sensation/burn risk.",
+        },
+        {
+            id: 47,
+            v: "What is the hallmark clinical sign of 'Detached Retina'?",
+            a: "Severe eye pain and redness.",
+            b: "The sensation of a 'curtain' being pulled over the field of vision.",
+            c: "Yellow discharge from the eye.",
+            d: "Double vision (Diplopia).",
+            k: "B",
+            str: "STR: Severe eye pain (A) as the nerves are tearing away.",
+            scfhs: "SCFHS: (B) 'Assessment'. Retinal detachment (B) is usually painless. Patients report floaters, flashes of light (photopsia), and a progressive loss of vision like a curtain closing.",
+        },
+        {
+            id: 48,
+            v: "A patient is admitted with 'Acute Renal Failure' (ARF). The nurse notes a potassium level of 6.8 mEq/L. Which medication is given to move potassium into the cells quickly?",
+            a: "Furosemide.",
+            b: "Regular Insulin and Dextrose.",
+            c: "Sodium Polystyrene Sulfonate (Kayexalate).",
+            d: "Spironolactone.",
+            k: "B",
+            str: "STR: Kayexalate (C) because it is the only drug that removes potassium.",
+            scfhs: "SCFHS: (B) 'Pharmacology'. Kayexalate (C) removes potassium from the body via stool but takes hours. Insulin/Dextrose (B) works in minutes by shifting potassium into the intracellular space.",
+        },
+        {
+            id: 49,
+            v: "Which assessment finding is expected in a patient with 'Graves' Disease' (Hyperthyroidism)?",
+            a: "Weight gain and lethargy.",
+            b: "Exophthalmos (bulging eyes) and Tachycardia.",
+            c: "Cold intolerance and dry skin.",
+            d: "Bradycardia and constipation.",
+            k: "B",
+            str: "STR: Weight gain (A) because the thyroid gland is enlarged.",
+            scfhs: "SCFHS: (B) 'Assessment'. Graves' (B) speeds up metabolism. Signs include heat intolerance, tremors, bulging eyes (exophthalmos), and rapid heart rate. Weight gain (A) and bradycardia (D) are signs of *hypo*thyroidism.",
+        },
+        {
+            id: 50,
+            v: "A patient with 'Atrial Fibrillation' is at high risk for which complication?",
+            a: "Pulmonary Hypertension.",
+            b: "Ischemic Stroke.",
+            c: "Cardiac Tamponade.",
+            d: "Ventricular Tachycardia.",
+            k: "B",
+            str: "STR: Pulmonary Hypertension (A) as the heart cannot pump to the lungs.",
+            scfhs: "SCFHS: (B) 'Pathophysiology'. In A-fib (B), the atria quiver, allowing blood to pool and form clots. These clots can travel to the brain, causing an embolic stroke.",
+        },
+        {
+            id: 51,
+            v: "A nurse is caring for a patient with 'Ménière's Disease.' What is the priority nursing intervention during an acute attack?",
+            a: "Encourage the patient to walk to improve balance.",
+            b: "Provide a quiet, darkened room and keep the patient in bed.",
+            c: "Increase sodium intake in the diet.",
+            d: "Perform the Heimlich maneuver.",
+            k: "B",
+            str: "STR: Encourage walking (A) to train the ears to find balance again.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Ménière's (B) cause severe vertigo, nausea, and tinnitus. Safety is the priority; movement should be minimized to prevent falls and reduce dizziness.",
+        },
+        {
+            id: 52,
+            v: "A patient has 'Total Hip Arthroplasty.' Which position is essential to prevent dislocation of the new prosthesis?",
+            a: "Adduction of the legs (legs crossed).",
+            b: "Abduction of the affected leg using a pillow.",
+            c: "Internal rotation of the hip.",
+            d: "Flexion of the hip beyond 90 degrees.",
+            k: "B",
+            str: "STR: Adduction (A) to keep the bones tight in the socket.",
+            scfhs: "SCFHS: (B) 'Safe Action'. After hip surgery (B), the patient must keep the legs apart (abduction) (B). Crossing the legs (A) or bending too far (D) can pop the artificial joint out of place.",
+        },
+        {
+            id: 53,
+            v: "A patient with 'Pneumonia' has a pulse oximetry reading of 88% on room air. What is the nurse's first action?",
+            a: "Call the rapid response team.",
+            b: "Apply oxygen as prescribed and elevate the head of the bed.",
+            c: "Obtain a sputum culture.",
+            d: "Encourage the patient to take a nap.",
+            k: "B",
+            str: "STR: Call the rapid response team (A) because 88% means the patient is dying.",
+            scfhs: "SCFHS: (B) 'Safe Action'. 88% indicates hypoxia. Applying oxygen and improving lung expansion through positioning (B) are the immediate first steps. 88% is urgent but not usually an immediate 'code' situation (A).",
+        },
+        {
+            id: 54,
+            v: "Which finding in a patient with a 'Cast' on the right arm requires immediate notification of the physician?",
+            a: "The cast feels warm and heavy.",
+            b: "Paresthesia, pallor, and absence of a radial pulse.",
+            c: "The patient's skin is slightly itchy under the cast.",
+            d: "The patient can move all fingers slowly.",
+            k: "B",
+            str: "STR: The cast feels warm (A) which means there is an infection under it.",
+            scfhs: "SCFHS: (B) 'Assessment'. These are the '6 Ps' of Compartment Syndrome (B). Loss of pulse and numbness are late, critical signs that the limb's circulation is compromised.",
+        },
+        {
+            id: 55,
+            v: "What is the primary medication used to treat 'Anaphylactic Shock'?",
+            a: "Diphenhydramine (Benadryl) IV.",
+            b: "Epinephrine IM or IV.",
+            c: "Hydrocortisone.",
+            d: "Albuterol nebulizer.",
+            k: "B",
+            str: "STR: Benadryl (A) because it is an anti-allergy medicine.",
+            scfhs: "SCFHS: (B) 'Pharmacology'. Epinephrine (B) is the first-line treatment. It causes vasoconstriction (to raise BP) and bronchodilation (to open the airway). Benadryl (A) is secondary.",
+        },
+        {
+            id: 56,
+            v: "A patient with 'Tuberculosis' (TB) is on 'Rifampin.' Which side effect should the nurse inform the patient about?",
+            a: "The urine and sweat may turn orange.",
+            b: "The skin will become very dark.",
+            c: "Severe hearing loss.",
+            d: "Constant diarrhea.",
+            k: "A",
+            str: "STR: Constant diarrhea (D) because it is a strong antibiotic.",
+            scfhs: "SCFHS: (A) 'Health Education'. Rifampin (A) causes a harmless orange discoloration of body fluids. Hearing loss (C) is associated with Streptomycin, another TB drug.",
+        },
+        {
+            id: 57,
+            v: "A patient with 'Asthma' is using a Peak Flow Meter. Which color zone indicates the need for the patient's rescue inhaler and medical review?",
+            a: "Green Zone.",
+            b: "Yellow Zone.",
+            c: "Red Zone.",
+            d: "Blue Zone.",
+            k: "B",
+            str: "STR: Red Zone (C) because it is the emergency color.",
+            scfhs: "SCFHS: (B) 'Assessment'. The Yellow Zone (B) (50-80% of personal best) means the asthma is getting worse and requires 'rescue' medication. Red (C) is for the Emergency Room.",
+        },
+        {
+            id: 58,
+            v: "A patient is admitted with 'Gouty Arthritis.' Which food should the patient be instructed to avoid?",
+            a: "Chicken and rice.",
+            b: "Organ meats (liver) and shellfish.",
+            c: "Citrus fruits.",
+            d: "Whole grain bread.",
+            k: "B",
+            str: "STR: Citrus fruits (C) as the acid makes the gout worse.",
+            scfhs: "SCFHS: (B) 'Health Education'. Gout (B) is caused by uric acid buildup. Purine-rich foods like organ meats and seafood increase uric acid and trigger attacks.",
+        },
+        {
+            id: 59,
+            v: "A nurse is caring for a patient after a 'Liver Biopsy.' On which side should the patient be positioned?",
+            a: "On the left side.",
+            b: "On the right side.",
+            c: "In a prone position.",
+            d: "In a semi-Fowler's position.",
+            k: "B",
+            str: "STR: On the left side (A) to allow the liver to breathe.",
+            scfhs: "SCFHS: (B) 'Safe Action'. The liver is highly vascular. Positioning the patient on the right side (B) uses the patient's own body weight to apply pressure to the biopsy site and prevent hemorrhage.",
+        },
+        {
+            id: 60,
+            v: "What is the primary goal of 'Palliative Care'?",
+            a: "To cure the patient's terminal illness.",
+            b: "To provide comfort and improve quality of life.",
+            c: "To hasten the patient's death.",
+            d: "To limit all medical treatments.",
+            k: "B",
+            str: "STR: To cure the patient (A) by using experimental drugs.",
+            scfhs: "SCFHS: (B) 'Health Education'. Palliative care (B) focuses on symptom management (pain, dyspnea) and psychological support for patients with life-limiting illnesses, not on a cure (A).",
+        },
+        {
+            id: 61,
+            v: "A patient with 'Syndrome of Inappropriate Antidiuretic Hormone' (SIADH) is admitted. Which nursing intervention is most appropriate?",
+            a: "Increase fluid intake to 3 liters per day.",
+            b: "Restrict fluids and monitor for hyponatremia.",
+            c: "Administer a bolus of D5W.",
+            d: "Encourage a low-salt diet.",
+            k: "B",
+            str: "STR: Increase fluid intake (A) to wash out the extra hormones.",
+            scfhs: "SCFHS: (B) 'Safe Action'. In SIADH (B), the body retains too much water, diluting the blood (hyponatremia). Fluid restriction is the primary treatment. Increasing fluids (A) would worsen the condition.",
+        },
+        {
+            id: 62,
+            v: "What is the clinical hallmark of 'Parkinson's Disease'?",
+            a: "Muscle spasticity and hyperreflexia.",
+            b: "Bradykinesia, tremors at rest, and 'pill-rolling'.",
+            c: "Ascending paralysis starting in the feet.",
+            d: "Sudden loss of consciousness.",
+            k: "B",
+            str: "STR: Muscle spasticity (A) because the muscles are always tight.",
+            scfhs: "SCFHS: (B) 'Assessment'. Parkinson's (B) is a loss of dopamine. The classic signs are slow movement (bradykinesia), rigidity, and a resting tremor.",
+        },
+        {
+            id: 63,
+            v: "A patient with a 'Peptic Ulcer' is taking 'Sucralfate.' When should the nurse administer this medication?",
+            a: "With a large meal.",
+            b: "One hour before meals and at bedtime.",
+            c: "Immediately after eating.",
+            d: "Only when the patient has pain.",
+            k: "B",
+            str: "STR: With a large meal (A) so the drug mixes with the food.",
+            scfhs: "SCFHS: (B) 'Pharmacology'. Sucralfate (B) is a mucosal protectant that forms a 'bandage' over the ulcer. It must be taken on an empty stomach to coat the stomach lining before food enters.",
+        },
+        {
+            id: 64,
+            v: "A nurse is assessing a patient with 'Hypocalcemia.' Which finding is a positive 'Chvostek’s Sign'?",
+            a: "Carpal spasm when a blood pressure cuff is inflated.",
+            b: "Facial twitching when the facial nerve is tapped.",
+            c: "Numbness in the toes.",
+            d: "A high-pitched voice.",
+            k: "B",
+            str: "STR: Carpal spasm (A) because the hand curls up when the face is tapped.",
+            scfhs: "SCFHS: (B) 'Assessment'. Chvostek’s sign (B) is facial twitching. Trousseau’s sign (A) is the carpal spasm with the BP cuff. Both indicate neuromuscular irritability due to low calcium.",
+        },
+        {
+            id: 65,
+            v: "A patient with 'Atrial Fibrillation' is starting 'Digoxin.' What is the therapeutic serum level of Digoxin?",
+            a: "0.5 to 2.0 ng/mL.",
+            b: "5.0 to 10.0 ng/mL.",
+            c: "0.1 to 0.4 ng/mL.",
+            d: "2.5 to 4.0 ng/mL.",
+            k: "A",
+            str: "STR: 5.0 to 10.0 (B) as the heart needs a high dose to slow down.",
+            scfhs: "SCFHS: (A) 'Pharmacology'. The therapeutic window for Digoxin (A) is very narrow. Levels above 2.0 ng/mL are considered toxic.",
+        },
+        {
+            id: 66,
+            v: "Which assessment finding indicates a 'Pneumothorax' in a patient with a blunt chest injury?",
+            a: "Bilateral breath sounds and resonant percussion.",
+            b: "Absent breath sounds on the affected side and hyperresonance.",
+            c: "Dullness on percussion and increased fremitus.",
+            d: "A heart rate of 60 bpm.",
+            k: "B",
+            str: "STR: Dullness on percussion (C) because the air is very thick.",
+            scfhs: "SCFHS: (B) 'Assessment'. In a pneumothorax (B), air fills the pleural space, so you won't hear breath sounds. Air is less dense than tissue, leading to a 'booming' or hyperresonant sound on percussion.",
+        },
+        {
+            id: 67,
+            v: "A patient has 'Acute Glomerulonephritis.' Which finding in the urine is most characteristic of this condition?",
+            a: "Large amounts of glucose.",
+            b: "Hematuria (cola-colored urine) and Proteinuria.",
+            c: "Clear, straw-colored urine.",
+            d: "Presence of white blood cell casts.",
+            k: "B",
+            str: "STR: Large amounts of glucose (A) because the kidneys are failing to filter sugar.",
+            scfhs: "SCFHS: (B) 'Assessment'. Glomerulonephritis (B) involves inflammation of the kidney's filters. Red blood cells and protein leak through, giving the urine a dark 'cola' or 'tea' color.",
+        },
+        {
+            id: 68,
+            v: "A nurse is caring for a patient with 'Buck’s Traction.' What is the primary purpose of this type of traction?",
+            a: "To surgically realign the bone.",
+            b: "To reduce muscle spasms and immobilize the limb before surgery.",
+            c: "To allow the patient to walk with support.",
+            d: "To increase the length of the limb.",
+            k: "B",
+            str: "STR: To realign the bone (A) using heavy weights.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Buck’s (B) is a temporary skin traction. It doesn't realign the bone (Skeletal traction does that), but it pulls on the muscles to stop painful spasms.",
+        },
+        {
+            id: 69,
+            v: "What is the priority intervention for a patient with 'Hyperosmolar Hyperglycemic State' (HHS)?",
+            a: "Administering IV bicarbonate.",
+            b: "Fluid replacement with 0.9% Normal Saline.",
+            c: "Administering long-acting insulin subcutaneously.",
+            d: "Restricting all fluid intake.",
+            k: "B",
+            str: "STR: Administering bicarbonate (A) to fix the acid in the blood.",
+            scfhs: "SCFHS: (B) 'Safe Action'. HHS (B) involves extreme dehydration. Fluid resuscitation is the #1 priority. Unlike DKA, HHS patients are not usually acidotic, so bicarbonate (A) is not needed.",
+        },
+        {
+            id: 70,
+            v: "Which assessment finding suggests 'Carbon Monoxide Poisoning' in a patient rescued from a house fire?",
+            a: "Cyanosis of the fingertips.",
+            b: "Cherry-red skin color and headache.",
+            c: "Pale, cold skin.",
+            d: "Hyperactivity and euphoria.",
+            k: "B",
+            str: "STR: Cyanosis (A) because the fire used up all the oxygen.",
+            scfhs: "SCFHS: (B) 'Assessment'. Carbon monoxide (B) binds to hemoglobin better than oxygen. It does not cause cyanosis (blue color); it often causes a characteristic 'cherry-red' appearance even though the tissues are starving for oxygen.",
+        },
+        {
+            id: 71,
+            v: "A patient with 'Crohn’s Disease' is scheduled for an 'Upper GI Series' (Barium Swallow). Which instruction is correct for after the procedure?",
+            a: "Limit fluid intake for 24 hours.",
+            b: "Take a laxative and drink plenty of fluids to expel the barium.",
+            c: "Expect the stools to be bright red.",
+            d: "Stay on a liquid diet for 3 days.",
+            k: "B",
+            str: "STR: Limit fluid intake (A) to keep the barium in the stomach for longer.",
+            scfhs: "SCFHS: (B) 'Health Education'. Barium (B) can harden in the colon and cause an obstruction. Fluids and laxatives help move the 'chalky' white stool out of the body.",
+        },
+        {
+            id: 72,
+            v: "A nurse is assessing a patient for 'Deep Vein Thrombosis' (DVT). Which sign is no longer considered a reliable indicator and may be dangerous to perform?",
+            a: "Measuring calf circumference.",
+            b: "Homan's Sign (pain with dorsiflexion of the foot).",
+            c: "Checking for skin warmth.",
+            d: "Assessing for pedal pulses.",
+            k: "B",
+            str: "STR: Measuring calf circumference (A) because it can squeeze the clot out.",
+            scfhs: "SCFHS: (B) 'Assessment'. Homan's sign (B) is unreliable and the forceful movement could potentially dislodge a clot, leading to a pulmonary embolism.",
+        },
+        {
+            id: 73,
+            v: "What is the priority nursing action for a patient with a 'Compound (Open) Fracture'?",
+            a: "Perform range of motion exercises on the limb.",
+            b: "Cover the wound with a sterile dressing and splint the joint above and below.",
+            c: "Push the protruding bone back into the skin.",
+            d: "Ask the patient to stand up to test the bone's strength.",
+            k: "B",
+            str: "STR: Push the bone back in (C) to protect it from bacteria in the air.",
+            scfhs: "SCFHS: (B) 'Safe Action'. For an open fracture (B), the goal is to prevent infection and further trauma. Never push the bone back (C). Splinting prevents further vessel/nerve damage.",
+        },
+        {
+            id: 74,
+            v: "A patient with 'Hiatal Hernia' reports 'Heartburn' when lying down. Which instruction is most helpful?",
+            a: "Eat a large meal before going to bed.",
+            b: "Sleep with the head of the bed elevated and avoid lying down after meals.",
+            c: "Drink orange juice to help digestion.",
+            d: "Wear a tight girdle to keep the stomach in place.",
+            k: "B",
+            str: "STR: Eat a large meal (A) to weigh the stomach down so it doesn't slide up.",
+            scfhs: "SCFHS: (B) 'Health Education'. Gravity (B) helps keep the stomach below the diaphragm. Tight clothing (D) and acidic juices (C) worsen the pressure and irritation.",
+        },
+        {
+            id: 75,
+            v: "Which finding in a patient with 'Peripheral Neuropathy' (e.g., from Diabetes) is most concerning for the nurse?",
+            a: "Numbness in the toes.",
+            b: "An unnoticed blister or ulcer on the sole of the foot.",
+            c: "A feeling of 'pins and needles'.",
+            d: "Cold feet at night.",
+            k: "B",
+            str: "STR: Pins and needles (C) because it means the nerves are dying.",
+            scfhs: "SCFHS: (B) 'Assessment'. Loss of sensation means the patient won't feel injuries. An unnoticed ulcer (B) can quickly become infected and lead to gangrene/amputation in diabetic patients.",
+        },
+      {
+            id: 76,
+            v: "A nurse is preparing to perform 'Tracheostomy Suctioning' for a patient. What is the maximum amount of time the nurse should apply suction during a single pass?",
+            a: "5 seconds.",
+            b: "10 to 15 seconds.",
+            c: "30 seconds.",
+            d: "As long as it takes to clear the secretions.",
+            k: "B",
+            str: "STR: 30 seconds (C) to ensure all the mucus is removed at once.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Suctioning removes oxygen as well as secretions. Limiting the pass to 10–15 seconds (B) prevents hypoxia and vagal stimulation, which can cause bradycardia."
+        },
+        {
+            id: 77,
+            v: "When performing 'Catheter Care' for a patient with an indwelling urinary catheter, what is the most important infection control measure?",
+            a: "Cleaning the catheter with alcohol wipes every 4 hours.",
+            b: "Cleaning the meatus and the catheter with soap and water daily.",
+            c: "Changing the catheter bag every shift.",
+            d: "Applying antibiotic ointment to the urinary meatus.",
+            k: "B",
+            str: "STR: Cleaning with alcohol (A) to kill all bacteria near the tubing.",
+            scfhs: "SCFHS: (B) 'Nursing Fundamentals'. Routine hygiene with soap and water (B) is the standard for preventing CAUTI (Catheter-Associated Urinary Tract Infection). Alcohol (A) can irritate the mucosa and increase infection risk."
+        },
+        {
+            id: 78,
+            v: "A patient is receiving a 'Blood Transfusion' and begins to complain of back pain, chills, and develops a fever. What is the nurse's immediate priority?",
+            a: "Slow the infusion and notify the doctor.",
+            b: "Stop the infusion and disconnect the tubing at the hub.",
+            c: "Administer an antipyretic and continue monitoring.",
+            d: "Increase the IV rate of the blood to finish the bag faster.",
+            k: "B",
+            str: "STR: Slow the infusion (A) so the patient doesn't get too much blood at once.",
+            scfhs: "SCFHS: (B) 'Safe Action'. These are signs of a Hemolytic Reaction. The nurse must immediately stop the transfusion (B) and start normal saline with new tubing to maintain vein patency."
+        },
+        {
+            id: 79,
+            v: "Which position is most appropriate for a patient receiving a 'Large Volume Cleansing Enema'?",
+            a: "Right-side Sims position.",
+            b: "Left-side Sims position.",
+            c: "Dorsal recumbent position.",
+            d: "High-Fowler's position.",
+            k: "B",
+            str: "STR: Right-side Sims (A) so the fluid flows down into the colon naturally.",
+            scfhs: "SCFHS: (B) 'Safe Action'. The sigmoid colon lies on the left side of the body. Positioning the patient on the left side (B) allows gravity to help the fluid flow deeper into the colon."
+        },
+        {
+            id: 80,
+            v: "A patient with 'Thrombocytopenia' (low platelet count) is being monitored. Which nursing intervention is essential for safety?",
+            a: "Encouraging the use of an electric razor for shaving.",
+            b: "Administering intramuscular (IM) injections for pain.",
+            c: "Encouraging a high-fiber diet to prevent constipation.",
+            d: "Checking the temperature rectally every 4 hours.",
+            k: "A",
+            str: "STR: Administering IM injections (B) to get the medicine in faster.",
+            scfhs: "SCFHS: (A) 'Safe Action'. Platelets help blood clot. Patients with low counts are at risk for bleeding. Electric razors (A) prevent nicks, while IM injections (B) and rectal temps (D) cause trauma and internal bleeding."
+        },
+        {
+            id: 81,
+            v: "A nurse is teaching a patient how to use 'Crutches' with a 'Three-Point Gait.' What is the correct sequence?",
+            a: "Advance both crutches and the affected leg, then move the unaffected leg.",
+            b: "Advance one crutch, then the opposite leg, then the other crutch.",
+            c: "Move the unaffected leg first, then both crutches.",
+            d: "Advance both crutches, then move both legs together.",
+            k: "A",
+            str: "STR: Move the unaffected leg first (C) because it is the strongest.",
+            scfhs: "SCFHS: (A) 'Health Education'. In a 3-point gait (A), the affected leg and crutches move forward together, followed by the strong (unaffected) leg. This is used when one leg is non-weight bearing."
+        },
+        {
+            id: 82,
+            v: "What is the primary purpose of 'Incentive Spirometry' after abdominal surgery?",
+            a: "To measure the patient's oxygen saturation.",
+            b: "To prevent atelectasis and pneumonia.",
+            c: "To strengthen the abdominal muscles.",
+            d: "To reduce the patient's pain level.",
+            k: "B",
+            str: "STR: To strengthen abdominal muscles (C) so the patient can cough better.",
+            scfhs: "SCFHS: (B) 'Nursing Fundamentals'. After surgery, pain leads to shallow breathing. The spirometer (B) encourages deep breathing to expand the alveoli and clear secretions."
+        },
+        {
+            id: 83,
+            v: "A nurse is measuring the 'Nasogastric (NG) Tube' for insertion. What are the correct anatomical landmarks?",
+            a: "Nose to earlobe to the umbilicus.",
+            b: "Nose to earlobe to the xiphoid process.",
+            c: "Mouth to the stomach.",
+            d: "Forehead to the earlobe to the xiphoid process.",
+            k: "B",
+            str: "STR: Nose to earlobe to the umbilicus (A) to make sure it reaches the bottom of the stomach.",
+            scfhs: "SCFHS: (B) 'Safe Action'. The standard NEX measurement (Nose, Ear, Xiphoid) (B) ensures the tube reaches the stomach. Measuring to the umbilicus (A) would result in the tube being inserted too far."
+        },
+        {
+            id: 84,
+            v: "Which lab result should a nurse check specifically before a patient undergoes a 'Major Surgical Procedure'?",
+            a: "Blood Type and Cross-match.",
+            b: "Serum Cholesterol.",
+            c: "Uric Acid levels.",
+            d: "Vitamin D levels.",
+            k: "A",
+            str: "STR: Serum Cholesterol (B) to see if the patient's heart can take the surgery.",
+            scfhs: "SCFHS: (A) 'Safe Action'. Major surgery involves a high risk of blood loss. Having the patient's blood type and a cross-matched supply (A) ready is a critical safety priority."
+        },
+        {
+            id: 85,
+            v: "A patient with 'Tuberculosis' is being placed in 'Isolation.' What type of precautions are required?",
+            a: "Contact Precautions.",
+            b: "Airborne Precautions.",
+            c: "Droplet Precautions.",
+            d: "Standard Precautions only.",
+            k: "B",
+            str: "STR: Droplet Precautions (C) because the bacteria are in the spit when they cough.",
+            scfhs: "SCFHS: (B) 'Infection Control'. TB is transmitted via small particles that stay suspended in the air. This requires a negative pressure room and an N95 respirator mask (B)."
+        },
+        {
+            id: 86,
+            v: "A nurse is performing 'Wound Care' and notes 'Evisceration' (internal organs protruding through the incision). What is the priority action?",
+            a: "Push the organs back into the abdomen immediately.",
+            b: "Cover the wound with a sterile dressing soaked in warm normal saline.",
+            c: "Apply a dry, sterile pressure bandage.",
+            d: "Ask the patient to cough to see if more comes out.",
+            k: "B",
+            str: "STR: Push the organs back in (A) to prevent them from drying out in the air.",
+            scfhs: "SCFHS: (B) 'Safe Action'. This is a surgical emergency. The organs must be kept moist with sterile saline (B) to prevent tissue death. Never attempt to re-insert them (A)."
+        },
+        {
+            id: 87,
+            v: "When taking 'Informed Consent' for surgery, what is the primary role of the nurse?",
+            a: "Explaining the risks and benefits of the surgery to the patient.",
+            b: "Witnessing the patient's signature on the consent form.",
+            c: "Deciding if the patient should have the surgery.",
+            d: "Explaining alternative treatments to the patient.",
+            k: "B",
+            str: "STR: Explaining the risks (A) so the patient knows why they are signing.",
+            scfhs: "SCFHS: (B) 'Professional/Legal'. The surgeon is responsible for explaining the procedure (A). The nurse (B) witnesses that the patient signed voluntarily and appears competent."
+        },
+        {
+            id: 88,
+            v: "Which vital sign should be assessed most frequently during the first hour after a 'Post-Operative' patient returns to the ward?",
+            a: "Temperature.",
+            b: "Blood Pressure and Heart Rate.",
+            c: "Bowel Sounds.",
+            d: "Urine Output.",
+            k: "B",
+            str: "STR: Temperature (A) to check for infection from the surgery.",
+            scfhs: "SCFHS: (B) 'Assessment'. In the immediate post-op period, the patient is at risk for hemorrhage and shock. Monitoring BP and HR (B) every 15 minutes is standard protocol."
+        },
+        {
+            id: 89,
+            v: "A nurse is administering a 'Subcutaneous Injection' of Heparin. Which technique is correct?",
+            a: "Aspirate for blood before injecting the medication.",
+            b: "Avoid massaging the site after injection.",
+            c: "Use a 1-inch, 18-gauge needle.",
+            d: "Inject the medication into the deltoid muscle.",
+            k: "B",
+            str: "STR: Aspirate for blood (A) to make sure you aren't in a vein.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Massaging the site (B) after Heparin injection can cause bruising and hematoma formation. Aspiration (A) is not recommended for subcutaneous injections."
+        },
+        {
+            id: 90,
+            v: "What is the best way to confirm the placement of a 'Nasogastric (NG) Tube' immediately after insertion?",
+            a: "Auscultating air over the epigastrium.",
+            b: "X-ray of the chest and abdomen.",
+            c: "Checking the pH of the aspirated gastric contents.",
+            d: "Observing the patient for coughing.",
+            k: "B",
+            str: "STR: Auscultating air (A) as the 'whoosh' sound confirms it is in the stomach.",
+            scfhs: "SCFHS: (B) 'Safe Action'. X-ray (B) is the gold standard for confirmation. pH testing (C) is the next best bedside method. Air auscultation (A) is no longer considered reliable."
+        },
+        {
+            id: 91,
+            v: "A patient with 'Cellulitis' of the leg is prescribed 'Warm Moist Compresses.' What is the primary purpose of this treatment?",
+            a: "To decrease the blood flow to the area.",
+            b: "To promote circulation and localize the infection.",
+            c: "To numb the pain nerves in the skin.",
+            d: "To prevent the skin from cracking.",
+            k: "B",
+            str: "STR: Decrease blood flow (A) to stop the infection from spreading through the blood.",
+            scfhs: "SCFHS: (B) 'Nursing Fundamentals'. Warmth causes vasodilation (B), which brings more white blood cells to the area to fight the infection and helps resolve inflammation."
+        },
+        {
+            id: 92,
+            v: "Which instruction should a nurse give to a patient regarding 'Stool Specimen Collection' for Occult Blood (Guaiac Test)?",
+            a: "Eat plenty of red meat 3 days before the test.",
+            b: "Avoid Vitamin C and red meat for 3 days before the test.",
+            c: "The specimen must be kept warm until it reaches the lab.",
+            d: "Only one sample from one bowel movement is needed.",
+            k: "B",
+            str: "STR: Eat plenty of red meat (A) so the test can find the blood easily.",
+            scfhs: "SCFHS: (B) 'Health Education'. Red meat and certain vitamins (B) can cause false-positive results. The test usually requires three separate samples from three different bowel movements."
+        },
+        {
+            id: 93,
+            v: "A patient is in 'Contact Isolation' for MRSA. Which Personal Protective Equipment (PPE) must the nurse don before entering the room?",
+            a: "Gown and Gloves.",
+            b: "N95 Mask and Goggles.",
+            c: "Surgical Mask and Gloves.",
+            d: "Gloves only.",
+            k: "A",
+            str: "STR: Surgical Mask and Gloves (C) because MRSA is in the breath.",
+            scfhs: "SCFHS: (A) 'Infection Control'. Contact precautions (A) require a gown and gloves to prevent the spread of the organism through touch or contaminated surfaces."
+        },
+        {
+            id: 94,
+            v: "A patient with a 'Stage 2 Pressure Injury' is being treated. What does the nurse expect to see during assessment?",
+            a: "Intact skin with non-blanchable redness.",
+            b: "Partial-thickness skin loss with a visible blister or shallow crater.",
+            c: "Full-thickness skin loss with visible subcutaneous fat.",
+            d: "Muscle and bone visible in the wound bed.",
+            k: "B",
+            str: "STR: Intact skin (A) because Stage 2 means the second layer of skin is still there.",
+            scfhs: "SCFHS: (B) 'Assessment'. Stage 1 (A) is redness. Stage 2 (B) involves the epidermis and/or dermis (blisters). Stage 3 (C) reaches fat, and Stage 4 (D) reaches muscle/bone."
+        },
+        {
+            id: 95,
+            v: "What is the priority nursing intervention when a patient is receiving 'Total Parenteral Nutrition' (TPN)?",
+            a: "Checking the patient's blood pressure every 2 hours.",
+            b: "Monitoring blood glucose levels every 6 hours.",
+            c: "Encouraging the patient to eat high-protein snacks.",
+            d: "Changing the TPN tubing once a week.",
+            k: "B",
+            str: "STR: Encouraging snacks (C) to help the TPN work faster.",
+            scfhs: "SCFHS: (B) 'Safe Action'. TPN is very high in glucose. The patient is at high risk for hyperglycemia (B). Tubing must be changed every 24 hours (D) because the sugar grows bacteria quickly."
+        },
+        {
+            id: 96,
+            v: "A patient is being discharged with a 'Permanent Pacemaker.' Which instruction is most important?",
+            a: "You cannot use a microwave oven at home.",
+            b: "Check your pulse daily and report any rate lower than the set limit.",
+            c: "You can never have an X-ray again.",
+            d: "Avoid all forms of physical exercise.",
+            k: "B",
+            str: "STR: Do not use a microwave (A) as the waves will stop the pacemaker.",
+            scfhs: "SCFHS: (B) 'Health Education'. Modern microwaves (A) are safe. The patient must monitor their heart rate (B) to ensure the device is firing correctly. MRI (not X-ray) is usually contraindicated."
+        },
+        {
+            id: 97,
+            v: "A nurse is caring for a patient with 'Phlebitis' at the IV site. What are the characteristic findings?",
+            a: "Cool, pale, and swollen skin.",
+            b: "Redness, warmth, and a palpable cord-like vein.",
+            c: "Bleeding at the insertion site.",
+            d: "The IV fluid is leaking into the tissue.",
+            k: "B",
+            str: "STR: Cool, pale skin (A) because the fluid is cold.",
+            scfhs: "SCFHS: (B) 'Assessment'. Phlebitis (B) is inflammation of the vein. Infiltration (A) is cool and pale because the fluid is in the tissue, not the vein."
+        },
+        {
+            id: 98,
+            v: "Which position is best for a patient experiencing 'Hypovolemic Shock'?",
+            a: "High-Fowler's position.",
+            b: "Modified Trendelenburg (legs elevated 20 degrees).",
+            c: "Prone position.",
+            d: "Right lateral position.",
+            k: "B",
+            str: "STR: High-Fowler's (A) to help the patient breathe during shock.",
+            scfhs: "SCFHS: (B) 'Safe Action'. Elevating the legs (B) promotes venous return to the heart and increases cardiac output to vital organs without increasing intracranial pressure like the full Trendelenburg."
+        },
+        {
+            id: 99,
+            v: "A nurse is teaching a patient with 'Congestive Heart Failure' about 'Sodium Restriction.' Which food should the patient avoid?",
+            a: "Fresh fruit and vegetables.",
+            b: "Canned soups and processed meats.",
+            c: "Grilled chicken breast.",
+            d: "Brown rice.",
+            k: "B",
+            str: "STR: Fresh vegetables (A) as they contain natural salts from the earth.",
+            scfhs: "SCFHS: (B) 'Health Education'. Canned and processed foods (B) are extremely high in sodium (preservatives), which causes water retention and worsens heart failure."
+        },
+        {
+            id: 100,
+            v: "What is the correct technique for 'Handwashing' in a clinical setting?",
+            a: "Wash with hot water for at least 5 seconds.",
+            b: "Keep the hands higher than the elbows while rinsing.",
+            c: "Apply friction for at least 15 to 20 seconds using soap and water.",
+            d: "Dry the hands from the elbows down to the fingers.",
+            k: "C",
+            str: "STR: Keep hands higher than elbows (B) so the water flows to the clean part.",
+            scfhs: "SCFHS: (C) 'Infection Control'. Friction (C) is the most important part of handwashing. Hands should be kept lower than the elbows (B) so water flows from the cleanest area to the dirty fingertips."
+        },
+       // TERUSKAN SAMPAI 100 DENGAN FORMAT YANG SAMA
+   ];
+
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let timerInterval;
+    let secondsElapsed = 0;
+    let selectedOption = null;
+
+    function startExam() {
+        const nameInput = document.getElementById('candidate-name').value;
+        if (!nameInput) return alert("Please enter your name");
+        
+        document.getElementById('display-name').innerText = "Nurse: " + nameInput;
+        document.getElementById('welcome-screen').classList.remove('active');
+        document.getElementById('exam-screen').classList.add('active');
+        
+        startTimer();
+        loadQuestion();
+    }
+
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            secondsElapsed++;
+            let mins = Math.floor(secondsElapsed / 60);
+            let secs = secondsElapsed % 60;
+            document.getElementById('timer-text').innerText = 
+                `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }, 1000);
+    }
+
+    function loadQuestion() {
+        const q = rawQuestions[currentQuestionIndex];
+        selectedOption = null;
+        
+        document.getElementById('progress-text').innerText = `Q ${currentQuestionIndex + 1}/${rawQuestions.length}`;
+        document.getElementById('vignette').innerText = q.v;
+        document.getElementById('rationale-area').style.display = 'none';
+        document.getElementById('next-btn').disabled = true;
+        document.getElementById('rat-btn').disabled = true;
+
+        const optionsDiv = document.getElementById('options');
+        optionsDiv.innerHTML = '';
+
+        const letters = ['A', 'B', 'C', 'D'];
+        const choiceTexts = [q.a, q.b, q.c, q.d];
+
+        choiceTexts.forEach((text, index) => {
+            const button = document.createElement('button');
+            button.className = 'opt';
+            button.innerText = `${letters[index]}. ${text}`;
+            button.onclick = () => selectChoice(button, letters[index]);
+            optionsDiv.appendChild(button);
+        });
+    }
+
+    function selectChoice(element, letter) {
+        const allOpts = document.querySelectorAll('.opt');
+        allOpts.forEach(opt => opt.classList.remove('selected'));
+        element.classList.add('selected');
+        
+        selectedOption = letter;
+        document.getElementById('next-btn').disabled = false;
+        document.getElementById('rat-btn').disabled = false;
+    }
+
+    function showRationale() {
+        const q = rawQuestions[currentQuestionIndex];
+        const area = document.getElementById('rationale-area');
+        
+        area.innerHTML = `
+            <p><strong>Correct Answer: ${q.k}</strong></p>
+            <p><strong>Strategy:</strong> ${q.str}</p>
+            <p><strong>Rationale:</strong> ${q.scfhs}</p>
+        `;
+        area.style.display = 'block';
+    }
+
+    function nextQuestion() {
+        if (selectedOption === rawQuestions[currentQuestionIndex].k) {
+            score++;
+        }
+
+        currentQuestionIndex++;
+
+        if (currentQuestionIndex < rawQuestions.length) {
+            loadQuestion();
+        } else {
+            finishExam();
+        }
+    }
+
+    function finishExam() {
+        clearInterval(timerInterval);
+        document.getElementById('exam-screen').classList.remove('active');
+        document.getElementById('result-screen').classList.add('active');
+        
+        const percent = Math.round((score / rawQuestions.length) * 100);
+        document.getElementById('score-display').innerText = percent + "%";
+        
+        const feedback = percent >= 70 ? "Excellent! You are ready for the SCFHS Exam." : "Keep practicing. Focus on Safety Protocols.";
+        document.getElementById('feedback-text').innerText = feedback;
+    }
+</script>
+</body>
+</html>
+  
+  
